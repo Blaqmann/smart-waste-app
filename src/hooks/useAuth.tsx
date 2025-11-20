@@ -1,9 +1,10 @@
-/* eslint-disable */
 import { useState, useEffect } from 'react';
-import {
+import { 
   signInWithEmailAndPassword,
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  createUserWithEmailAndPassword,
+  updateProfile
 } from 'firebase/auth';
 import { auth } from '../firebase/config';
 import type { User } from 'firebase/auth';
@@ -26,9 +27,22 @@ export const useAuth = () => {
     return result;
   };
 
+  const register = async (email: string, password: string, displayName: string) => {
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+    
+    // Update profile with display name
+    if (auth.currentUser) {
+      await updateProfile(auth.currentUser, {
+        displayName: displayName
+      });
+    }
+    
+    return result;
+  };
+
   const logout = async () => {
     await signOut(auth);
   };
 
-  return { user, login, logout, loading };
+  return { user, login, register, logout, loading };
 };

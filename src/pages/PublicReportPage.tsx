@@ -2,17 +2,37 @@
 import React, { useState } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import { useAuth } from '../hooks/useAuth';
 
 const PublicReportPage: React.FC = () => {
+  const { user, loading } = useAuth();
   const [formData, setFormData] = useState({
     status: '' as 'Empty' | 'Almost Full' | 'Full' | 'Overflowing' | 'Damaged',
     location: { latitude: 0, longitude: 0, address: '' },
-    photoURL: '' // Changed from File to string URL
+    photoURL: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
 
   const statusOptions = ['Empty', 'Almost Full', 'Full', 'Overflowing', 'Damaged'] as const;
+
+  // Show loading state while auth is being checked
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  // Safe user access - only proceed if user exists
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-xl text-red-600">Authentication required</div>
+      </div>
+    );
+  }
 
   const handleStatusSelect = (status: typeof statusOptions[number]) => {
     setFormData(prev => ({ ...prev, status }));
@@ -51,12 +71,14 @@ const PublicReportPage: React.FC = () => {
         return;
       }
 
-      // Save report to Firestore
+      // Safe user access - user is guaranteed to exist here
       const reportData = {
         location: formData.location,
         binStatus: formData.status,
-        photoURL: formData.photoURL, // Store the URL directly
-        reportedBy: 'anonymous',
+        photoURL: formData.photoURL,
+        reportedBy: user.uid,
+        reporterName: user.displayName || user.email?.split('@')[0] || 'Resident',
+        reporterEmail: user.email,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         workflowStatus: 'reported' as const
@@ -102,6 +124,9 @@ const PublicReportPage: React.FC = () => {
           <p className="text-lg text-gray-600">
             Help keep your community clean by reporting full or damaged waste bins
           </p>
+          {/* <div className="mt-2 text-sm text-blue-600">
+            Welcome, {user.displayName || user.email}!
+          </div> */}
         </div>
 
         {/* Main Content Card */}
