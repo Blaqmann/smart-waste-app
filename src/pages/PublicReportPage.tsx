@@ -42,21 +42,25 @@ const PublicReportPage: React.FC = () => {
     setFormData(prev => ({ ...prev, photoURL: event.target.value }));
   };
 
-  const handleLocationSelect = () => {
-    const mockLocation = {
-      latitude: 6.5244 + (Math.random() - 0.5) * 0.01,
-      longitude: 3.3792 + (Math.random() - 0.5) * 0.01,
-      address: 'Sample Location, South-West Nigeria'
-    };
-    setFormData(prev => ({ ...prev, location: mockLocation }));
-    alert('Location set! In a real app, this would use a map picker.');
+  const handleAddressChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const address = event.target.value;
+    setFormData(prev => ({
+      ...prev,
+      location: {
+        ...prev.location,
+        address: address,
+        // Generate mock coordinates based on address input
+        latitude: address ? 6.5244 + (Math.random() - 0.5) * 0.01 : 0,
+        longitude: address ? 3.3792 + (Math.random() - 0.5) * 0.01 : 0
+      }
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.status || formData.location.latitude === 0) {
-      setSubmitMessage('Please select both status and location');
+    if (!formData.status || !formData.location.address.trim()) {
+      setSubmitMessage('Please select both status and enter a location address');
       return;
     }
 
@@ -124,9 +128,6 @@ const PublicReportPage: React.FC = () => {
           <p className="text-lg text-gray-600">
             Help keep your community clean by reporting full or damaged waste bins
           </p>
-          {/* <div className="mt-2 text-sm text-blue-600">
-            Welcome, {user.displayName || user.email}!
-          </div> */}
         </div>
 
         {/* Main Content Card */}
@@ -136,32 +137,31 @@ const PublicReportPage: React.FC = () => {
           </h2>
           
           <div className="space-y-6">
-            {/* Location Section */}
+            {/* Location Section - Updated to Address Input */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Bin Location *
+                Bin Location Address *
               </label>
-              <button
-                type="button"
-                onClick={handleLocationSelect}
-                className="w-full border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors"
-              >
-                {formData.location.latitude !== 0 ? (
-                  <div>
-                    <p className="text-green-600 font-medium">Location Set ✓</p>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {formData.location.address}
-                    </p>
-                  </div>
-                ) : (
-                  <div>
-                    <p className="text-gray-500">Click to set location</p>
-                    <p className="text-sm text-gray-400 mt-2">
-                      Select bin location on map
-                    </p>
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  value={formData.location.address}
+                  onChange={handleAddressChange}
+                  placeholder="Enter the full address of the bin location (e.g., 123 Main Street, Ikeja, Lagos)"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
+                {formData.location.address && (
+                  <div className="flex items-center text-green-600 text-sm">
+                    <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Location address entered
                   </div>
                 )}
-              </button>
+                <p className="text-sm text-gray-500">
+                  Please provide the complete address where the waste bin is located. Be as specific as possible to help our team locate it quickly.
+                </p>
+              </div>
             </div>
 
             {/* Status Section */}
@@ -241,19 +241,26 @@ const PublicReportPage: React.FC = () => {
           </div>
         </form>
 
-        {/* Info Section */}
+        {/* Updated Info Section */}
         <div className="mt-8 bg-blue-50 rounded-lg p-6">
           <h3 className="text-lg font-semibold text-blue-900 mb-2">
             How it works
           </h3>
           <ul className="text-blue-800 space-y-1">
-            <li>• Select the bin location on the map</li>
+            <li>• Enter the complete address of the bin location</li>
             <li>• Choose the current bin status</li>
             <li>• Add an image URL if available (optional)</li>
             <li>• Submit your report - waste management team will be notified</li>
           </ul>
           
           <div className="mt-4 p-3 bg-blue-100 rounded">
+            <h4 className="font-semibold text-blue-800 mb-1">Address Tips:</h4>
+            <p className="text-blue-700 text-sm">
+              Include street name, area/neighborhood, landmark, and city for accurate location identification.
+            </p>
+          </div>
+
+          <div className="mt-3 p-3 bg-blue-100 rounded">
             <h4 className="font-semibold text-blue-800 mb-1">Getting Image URLs:</h4>
             <p className="text-blue-700 text-sm">
               You can upload images to services like Imgur, Google Drive, or Dropbox and paste the shareable link here.
