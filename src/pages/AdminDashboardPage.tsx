@@ -1,6 +1,6 @@
 /* eslint-disable */
 import React, { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, updateDoc, doc, orderBy, limit, startAfter, getDocs } from 'firebase/firestore';
+import { collection, query, updateDoc, doc, orderBy, limit, startAfter, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import ImageModal from '../components/ImageModal';
 
