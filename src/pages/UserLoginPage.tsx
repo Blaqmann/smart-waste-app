@@ -8,20 +8,25 @@ const UserLoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
+  const [showVerificationMessage, setShowVerificationMessage] = useState(false);
+
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setShowVerificationMessage(false);
     setLoading(true);
 
     try {
       await login(email, password);
       navigate('/report');
     } catch (error: any) {
-      setError('Failed to log in. Please check your credentials.');
+      if (error.message.includes('verify your email')) {
+        setShowVerificationMessage(true);
+      }
+      setError(error.message || 'Failed to log in. Please check your credentials.');
       console.error('Login error:', error);
     } finally {
       setLoading(false);
@@ -46,6 +51,16 @@ const UserLoginPage: React.FC = () => {
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
               {error}
+            </div>
+          )}
+
+          {showVerificationMessage && (
+            <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
+              <p className="font-bold mb-2">Email Verification Required</p>
+              <p className="text-sm">
+                A new verification email has been sent to your email address.
+                Please check your inbox and verify your email before logging in.
+              </p>
             </div>
           )}
 

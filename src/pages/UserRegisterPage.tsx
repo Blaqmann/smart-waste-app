@@ -1,22 +1,25 @@
 /* eslint-disable */
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { NIGERIAN_STATES } from '../constants/nigerian-states';
+import { type NigerianState } from '../types';
 
 const UserRegisterPage: React.FC = () => {
   const [formData, setFormData] = useState({
     displayName: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    region: '' as NigerianState
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  const { register } = useAuth();
-  const navigate = useNavigate();
+  const [successMessage, setSuccessMessage] = useState('');
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const { register } = useAuth();
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData(prev => ({
       ...prev,
       [e.target.name]: e.target.value
@@ -26,6 +29,7 @@ const UserRegisterPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccessMessage('');
 
     // Validation
     if (formData.password !== formData.confirmPassword) {
@@ -38,11 +42,33 @@ const UserRegisterPage: React.FC = () => {
       return;
     }
 
+    if (!formData.region) {
+      setError('Please select your state');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await register(formData.email, formData.password, formData.displayName);
-      navigate('/report');
+      await register(
+        formData.email,
+        formData.password,
+        formData.displayName,
+        formData.region
+      );
+
+      setSuccessMessage('Registration successful! Please check your email to verify your account before logging in.');
+
+      // Reset form
+      setFormData({
+        displayName: '',
+        email: '',
+        password: '',
+        confirmPassword: '',
+        region: '' as NigerianState
+      });
+
+      // Don't navigate automatically - user needs to verify email first
     } catch (error: any) {
       console.error('Registration error:', error);
       setError(error.message || 'Failed to create account. Please try again.');
@@ -69,6 +95,23 @@ const UserRegisterPage: React.FC = () => {
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
               {error}
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+              <p>{successMessage}</p>
+              <div className="mt-3">
+                <Link
+                  to="/verify-email"
+                  className="inline-block bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded text-sm"
+                >
+                  Go to Verification Page
+                </Link>
+                <p className="text-xs text-green-600 mt-2">
+                  After verifying your email, you can log in and start reporting issues.
+                </p>
+              </div>
             </div>
           )}
 
@@ -102,6 +145,30 @@ const UserRegisterPage: React.FC = () => {
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               placeholder="Enter your email"
             />
+          </div>
+
+          <div>
+            <label htmlFor="region" className="block text-sm font-medium text-gray-700">
+              State *
+            </label>
+            <select
+              id="region"
+              name="region"
+              required
+              value={formData.region}
+              onChange={handleChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Select your state</option>
+              {NIGERIAN_STATES.map((state) => (
+                <option key={state} value={state}>
+                  {state}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              You cannot change your state after registration
+            </p>
           </div>
 
           <div>

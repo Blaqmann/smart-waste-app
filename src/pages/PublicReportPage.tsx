@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../hooks/useAuth';
+import { type NigerianState } from '../types';
 
 const PublicReportPage: React.FC = () => {
-  const { user, loading } = useAuth();
+  const { user, userProfile, loading } = useAuth();
   const [formData, setFormData] = useState({
     status: '' as 'Empty' | 'Almost Full' | 'Full' | 'Overflowing' | 'Damaged',
     location: { latitude: 0, longitude: 0, address: '' },
@@ -25,11 +26,27 @@ const PublicReportPage: React.FC = () => {
     );
   }
 
-  // Safe user access - only proceed if user exists
-  if (!user) {
+  // Safe user access - only proceed if user exists and has verified email
+  if (!user || !userProfile) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-xl text-red-600">Authentication required</div>
+      </div>
+    );
+  }
+
+  if (!user.emailVerified) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
+        <div className="max-w-md w-full space-y-8 text-center">
+          <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
+            <h3 className="font-bold mb-2">Email Verification Required</h3>
+            <p>
+              Please verify your email address before submitting reports.
+              Check your inbox for the verification email.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -58,7 +75,7 @@ const PublicReportPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.status || !formData.location.address.trim()) {
       setSubmitMessage('Please select both status and enter a location address');
       return;
@@ -75,14 +92,16 @@ const PublicReportPage: React.FC = () => {
         return;
       }
 
-      // Safe user access - user is guaranteed to exist here
+      // Create report with region from user profile
       const reportData = {
         location: formData.location,
+        region: userProfile.region as NigerianState,
         binStatus: formData.status,
         photoURL: formData.photoURL,
         reportedBy: user.uid,
         reporterName: user.displayName || user.email?.split('@')[0] || 'Resident',
         reporterEmail: user.email,
+        reporterRegion: userProfile.region,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         workflowStatus: 'reported' as const
@@ -91,7 +110,7 @@ const PublicReportPage: React.FC = () => {
       await addDoc(collection(db, 'reports'), reportData);
 
       setSubmitMessage('Report submitted successfully! Thank you for helping keep your community clean.');
-      
+
       // Reset form
       setFormData({
         status: '' as any,
@@ -127,6 +146,11 @@ const PublicReportPage: React.FC = () => {
           </h1>
           <p className="text-lg text-gray-600">
             Help keep your community clean by reporting full or damaged waste bins
+            {userProfile && (
+              <span className="block mt-2 text-blue-600 font-medium">
+                Your region: {userProfile.region}
+              </span>
+            )}
           </p>
         </div>
 
@@ -135,7 +159,7 @@ const PublicReportPage: React.FC = () => {
           <h2 className="text-2xl font-semibold text-gray-800 mb-6">
             Report Form
           </h2>
-          
+
           <div className="space-y-6">
             {/* Location Section - Updated to Address Input */}
             <div>
@@ -175,11 +199,10 @@ const PublicReportPage: React.FC = () => {
                     key={status}
                     type="button"
                     onClick={() => handleStatusSelect(status)}
-                    className={`py-2 px-3 rounded-md text-sm font-medium transition-colors ${
-                      formData.status === status
+                    className={`py-2 px-3 rounded-md text-sm font-medium transition-colors ${formData.status === status
                         ? 'bg-blue-600 text-white'
                         : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
-                    }`}
+                      }`}
                   >
                     {status}
                   </button>
@@ -202,14 +225,14 @@ const PublicReportPage: React.FC = () => {
               <p className="text-sm text-gray-500 mt-1">
                 Paste a link to a photo of the bin (e.g., from Imgur, Google Drive, etc.)
               </p>
-              
+
               {/* Preview if URL is provided */}
               {formData.photoURL && isValidUrl(formData.photoURL) && (
                 <div className="mt-3">
                   <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
-                  <img 
-                    src={formData.photoURL} 
-                    alt="Preview" 
+                  <img
+                    src={formData.photoURL}
+                    alt="Preview"
                     className="max-w-xs max-h-32 object-cover rounded border"
                     onError={(e) => {
                       (e.target as HTMLImageElement).style.display = 'none';
@@ -217,6 +240,21 @@ const PublicReportPage: React.FC = () => {
                   />
                 </div>
               )}
+            </div>
+
+            {/* Region Info (Read-only) */}
+            <div className="bg-blue-50 p-4 rounded-md">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm font-medium text-blue-800">
+                  This report will be tagged to your region: {userProfile.region}
+                </span>
+              </div>
+              <p className="text-xs text-blue-600 mt-1 ml-7">
+                Reports are managed by the waste management team in your state
+              </p>
             </div>
 
             {/* Submit Button */}
@@ -230,11 +268,10 @@ const PublicReportPage: React.FC = () => {
 
             {/* Status Message */}
             {submitMessage && (
-              <div className={`p-4 rounded-md ${
-                submitMessage.includes('Error') 
-                  ? 'bg-red-100 text-red-700' 
+              <div className={`p-4 rounded-md ${submitMessage.includes('Error')
+                  ? 'bg-red-100 text-red-700'
                   : 'bg-green-100 text-green-700'
-              }`}>
+                }`}>
                 {submitMessage}
               </div>
             )}
@@ -250,9 +287,10 @@ const PublicReportPage: React.FC = () => {
             <li>• Enter the complete address of the bin location</li>
             <li>• Choose the current bin status</li>
             <li>• Add an image URL if available (optional)</li>
-            <li>• Submit your report - waste management team will be notified</li>
+            <li>• Submit your report - waste management team in your state will be notified</li>
+            <li>• You'll receive notifications when your report is acknowledged or resolved</li>
           </ul>
-          
+
           <div className="mt-4 p-3 bg-blue-100 rounded">
             <h4 className="font-semibold text-blue-800 mb-1">Address Tips:</h4>
             <p className="text-blue-700 text-sm">

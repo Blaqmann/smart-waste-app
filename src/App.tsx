@@ -7,6 +7,8 @@ import UserLoginPage from './pages/UserLoginPage';
 import UserRegisterPage from './pages/UserRegisterPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import HomePage from './pages/HomePage';
+import UserManagementPage from './pages/UserManagementPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
 
 function App() {
   return (
@@ -17,22 +19,31 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<UserLoginPage />} />
           <Route path="/register" element={<UserRegisterPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
-          <Route 
-            path="/admin/dashboard" 
+          <Route
+            path="/admin/dashboard"
             element={
-              <ProtectedRoute adminOnly={true}>
+              <ProtectedRoute adminOnly={true} requireEmailVerification={true}>
                 <AdminDashboardPage />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/report" 
+          <Route
+            path="/admin/users"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute adminOnly={true} requireEmailVerification={true}>
+                <UserManagementPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/report"
+            element={
+              <ProtectedRoute requireEmailVerification={true}>
                 <PublicReportPage />
               </ProtectedRoute>
-            } 
+            }
           />
         </Routes>
       </div>

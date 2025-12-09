@@ -14,10 +14,10 @@ const HomePage: React.FC = () => {
             Smart Waste Management
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            Help keep South-West Nigeria clean by reporting waste bin issues in your community. 
+            Help keep Nigeria clean by reporting waste bin issues in your community.
             Together we can create a cleaner, healthier environment.
           </p>
-          
+
           {user ? (
             <div className="space-y-4">
               <p className="text-lg text-green-600 font-semibold">
@@ -44,6 +44,12 @@ const HomePage: React.FC = () => {
               >
                 Resident Login
               </Link>
+              <Link
+                to="/admin/login"
+                className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors"
+              >
+                Admin Login
+              </Link>
             </div>
           )}
         </div>
@@ -57,7 +63,7 @@ const HomePage: React.FC = () => {
               Sign up as a resident to start reporting waste bin issues in your neighborhood.
             </p>
           </div>
-          
+
           <div className="bg-white p-6 rounded-lg shadow-md">
             <div className="text-blue-600 text-2xl mb-4">2</div>
             <h3 className="text-xl font-semibold mb-2">Report Issues</h3>
@@ -65,7 +71,7 @@ const HomePage: React.FC = () => {
               Quickly report full, overflowing, or damaged bins with photos and location details.
             </p>
           </div>
-          
+
           <div className="bg-white p-6 rounded-lg shadow-md">
             <div className="text-blue-600 text-2xl mb-4">3</div>
             <h3 className="text-xl font-semibold mb-2">Track Progress</h3>

@@ -8,6 +8,7 @@ const AdminLoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showVerificationMessage, setShowVerificationMessage] = useState(false);
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -15,13 +16,19 @@ const AdminLoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setShowVerificationMessage(false);
     setLoading(true);
 
     try {
       await login(email, password);
+
+      // Check if user has admin role (this will be checked in the dashboard route)
       navigate('/admin/dashboard');
     } catch (error: any) {
-      setError('Failed to log in. Please check your credentials.');
+      if (error.message.includes('verify your email')) {
+        setShowVerificationMessage(true);
+      }
+      setError(error.message || 'Failed to log in. Please check your credentials.');
       console.error('Login error:', error);
     } finally {
       setLoading(false);
@@ -39,6 +46,9 @@ const AdminLoginPage: React.FC = () => {
           <p className="mt-2 text-sm text-gray-600">
             Access the waste management dashboard
           </p>
+          {/* <p className="mt-1 text-xs text-blue-600">
+            Email verification is required for admin access
+          </p> */}
         </div>
 
         {/* Login Form */}
@@ -46,6 +56,19 @@ const AdminLoginPage: React.FC = () => {
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
               {error}
+            </div>
+          )}
+
+          {showVerificationMessage && (
+            <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
+              <p className="font-bold mb-2">Email Verification Required</p>
+              <p className="text-sm">
+                A new verification email has been sent to your email address.
+                Please check your inbox and verify your email before logging in.
+              </p>
+              <p className="text-xs mt-2">
+                Admin access requires verified email addresses for security.
+              </p>
             </div>
           )}
 
@@ -90,12 +113,17 @@ const AdminLoginPage: React.FC = () => {
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
           </div>
-        </form>
 
-        {/* Demo Info
-        <div className="text-center text-sm text-gray-500">
-          <p>Use your Firebase Authentication credentials</p>
-        </div> */}
+          {/* Admin Access Note
+          <div className="text-center text-sm">
+            <p className="text-gray-600">
+              Only users with admin or super-admin roles can access the dashboard
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              Contact super admin if you need admin privileges
+            </p>
+          </div> */}
+        </form>
       </div>
     </div>
   );

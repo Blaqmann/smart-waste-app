@@ -1,28 +1,24 @@
 /* eslint-disable */
 import React, { useState, useEffect } from 'react';
-import { collection, query, updateDoc, doc, orderBy, limit, startAfter, getDocs } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  updateDoc,
+  doc,
+  orderBy,
+  limit,
+  startAfter,
+  getDocs,
+  where
+} from 'firebase/firestore';
 import { db } from '../firebase/config';
 import ImageModal from '../components/ImageModal';
-
-// Define the Report type
-type Report = {
-  id?: string;
-  location: {
-    latitude: number;
-    longitude: number;
-    address?: string;
-  };
-  binStatus: 'Empty' | 'Almost Full' | 'Full' | 'Overflowing' | 'Damaged';
-  photoURL?: string;
-  reportedBy?: string;
-  reporterName?: string;
-  reporterEmail?: string;
-  createdAt: any;
-  updatedAt: any;
-  workflowStatus: 'reported' | 'acknowledged' | 'collected';
-};
+import { useAuth } from '../hooks/useAuth';
+import { createNotification, NOTIFICATION_TEMPLATES } from '../services/notificationService';
+import type { Report, NigerianState } from '../types';
 
 const AdminDashboardPage: React.FC = () => {
+  const { userProfile } = useAuth();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -34,15 +30,36 @@ const AdminDashboardPage: React.FC = () => {
   const [lastVisible, setLastVisible] = useState<any>(null);
   const [hasMore, setHasMore] = useState(true);
 
-  // Fetch initial reports with pagination
+  // Region filter for non-super admins
+  const [regionFilter, setRegionFilter] = useState<NigerianState | 'all'>('all');
+
+  // Fetch initial reports with pagination and region filtering
   useEffect(() => {
     const fetchInitialReports = async () => {
       try {
-        const q = query(
-          collection(db, 'reports'),
-          orderBy('createdAt', 'desc'),
-          limit(reportsPerPage)
-        );
+        let q;
+
+        if (userProfile?.role === 'super-admin') {
+          // Super admin can see all reports
+          q = query(
+            collection(db, 'reports'),
+            orderBy('createdAt', 'desc'),
+            limit(reportsPerPage)
+          );
+        } else if (userProfile?.role === 'admin' && userProfile?.region) {
+          // Regular admin can only see reports from their region
+          q = query(
+            collection(db, 'reports'),
+            where('region', '==', userProfile.region),
+            orderBy('createdAt', 'desc'),
+            limit(reportsPerPage)
+          );
+        } else {
+          // For other roles or missing region, show empty
+          setReports([]);
+          setLoading(false);
+          return;
+        }
 
         const querySnapshot = await getDocs(q);
         const reportsData: Report[] = [];
@@ -55,25 +72,51 @@ const AdminDashboardPage: React.FC = () => {
         setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1]);
         setHasMore(reportsData.length === reportsPerPage);
         setLoading(false);
+
+        // Debug: Log what we fetched
+        console.log('Fetched reports:', reportsData.length, 'for region:', userProfile?.region);
+        if (reportsData.length === 0) {
+          console.log('No reports found. Check if region matches:', userProfile?.region);
+        }
       } catch (error) {
         console.error('Error fetching reports:', error);
+        // Check if it's a permission error
+        if (error.code === 'permission-denied') {
+          console.error('Permission denied. Check Firestore rules.');
+        }
         setLoading(false);
       }
     };
 
-    fetchInitialReports();
-  }, [reportsPerPage]);
+    if (userProfile) {
+      fetchInitialReports();
+    }
+  }, [reportsPerPage, userProfile]);
 
   const loadMoreReports = async () => {
     if (!lastVisible) return;
 
     try {
-      const q = query(
-        collection(db, 'reports'),
-        orderBy('createdAt', 'desc'),
-        startAfter(lastVisible),
-        limit(reportsPerPage)
-      );
+      let q;
+
+      if (userProfile?.role === 'super-admin') {
+        q = query(
+          collection(db, 'reports'),
+          orderBy('createdAt', 'desc'),
+          startAfter(lastVisible),
+          limit(reportsPerPage)
+        );
+      } else if (userProfile?.role === 'admin' && userProfile?.region) {
+        q = query(
+          collection(db, 'reports'),
+          where('region', '==', userProfile.region),
+          orderBy('createdAt', 'desc'),
+          startAfter(lastVisible),
+          limit(reportsPerPage)
+        );
+      } else {
+        return;
+      }
 
       const querySnapshot = await getDocs(q);
       const newReports: Report[] = [];
@@ -91,37 +134,42 @@ const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  // Filter reports by region (for super admin only)
+  const filteredReports = userProfile?.role === 'super-admin' && regionFilter !== 'all'
+    ? reports.filter(report => report.region === regionFilter)
+    : reports;
+
   // Enhanced analytics calculations
   const calculateAnalytics = () => {
     const now = new Date();
     const last24Hours = new Date(now.getTime() - (24 * 60 * 60 * 1000));
     const lastWeek = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
 
-    const reportsLast24Hours = reports.filter(report => {
+    const reportsLast24Hours = filteredReports.filter(report => {
       const reportDate = report.createdAt instanceof Date
         ? report.createdAt
         : new Date(report.createdAt.seconds * 1000);
       return reportDate >= last24Hours;
     });
 
-    const reportsLastWeek = reports.filter(report => {
+    const reportsLastWeek = filteredReports.filter(report => {
       const reportDate = report.createdAt instanceof Date
         ? report.createdAt
         : new Date(report.createdAt.seconds * 1000);
       return reportDate >= lastWeek;
     });
 
-    const binStatusCount = reports.reduce((acc, report) => {
+    const binStatusCount = filteredReports.reduce((acc, report) => {
       acc[report.binStatus] = (acc[report.binStatus] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
 
-    const workflowStatusCount = reports.reduce((acc, report) => {
+    const workflowStatusCount = filteredReports.reduce((acc, report) => {
       acc[report.workflowStatus] = (acc[report.workflowStatus] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
 
-    const avgResolutionTime = reports
+    const avgResolutionTime = filteredReports
       .filter(report => report.workflowStatus === 'collected')
       .reduce((total, report) => {
         const created = report.createdAt instanceof Date
@@ -131,20 +179,20 @@ const AdminDashboardPage: React.FC = () => {
           ? report.updatedAt
           : new Date(report.updatedAt.seconds * 1000);
         return total + (updated.getTime() - created.getTime());
-      }, 0) / (reports.filter(report => report.workflowStatus === 'collected').length || 1);
+      }, 0) / (filteredReports.filter(report => report.workflowStatus === 'collected').length || 1);
 
     return {
-      totalReports: reports.length,
-      totalToday: reports.filter(report => {
+      totalReports: filteredReports.length,
+      totalToday: filteredReports.filter(report => {
         const reportDate = report.createdAt instanceof Date
           ? report.createdAt
           : new Date(report.createdAt.seconds * 1000);
         return reportDate.toDateString() === now.toDateString();
       }).length,
-      pending: reports.filter(report => report.workflowStatus === 'reported').length,
-      acknowledged: reports.filter(report => report.workflowStatus === 'acknowledged').length,
-      resolved: reports.filter(report => report.workflowStatus === 'collected').length,
-      critical: reports.filter(report => report.binStatus === 'Overflowing' && report.workflowStatus !== 'collected').length,
+      pending: filteredReports.filter(report => report.workflowStatus === 'reported').length,
+      acknowledged: filteredReports.filter(report => report.workflowStatus === 'acknowledged').length,
+      resolved: filteredReports.filter(report => report.workflowStatus === 'collected').length,
+      critical: filteredReports.filter(report => report.binStatus === 'Overflowing' && report.workflowStatus !== 'collected').length,
       last24Hours: reportsLast24Hours.length,
       lastWeek: reportsLastWeek.length,
       binStatusCount,
@@ -165,13 +213,38 @@ const AdminDashboardPage: React.FC = () => {
     setSelectedImage(null);
   };
 
-  const updateWorkflowStatus = async (reportId: string, newStatus: 'reported' | 'acknowledged' | 'collected') => {
+  const updateWorkflowStatus = async (reportId: string, newStatus: 'reported' | 'acknowledged' | 'collected', reporterId: string) => {
     try {
       const reportRef = doc(db, 'reports', reportId);
       await updateDoc(reportRef, {
         workflowStatus: newStatus,
         updatedAt: new Date()
       });
+
+      // Create notification for user when report is acknowledged or collected
+      if (newStatus === 'acknowledged' || newStatus === 'collected') {
+        const template = newStatus === 'acknowledged'
+          ? NOTIFICATION_TEMPLATES.reportAcknowledged(reportId)
+          : NOTIFICATION_TEMPLATES.reportCollected(reportId);
+
+        await createNotification(
+          reporterId,
+          template.title,
+          template.message,
+          template.type,
+          reportId
+        );
+      }
+
+      // Update local state
+      setReports(prev =>
+        prev.map(report =>
+          report.id === reportId
+            ? { ...report, workflowStatus: newStatus, updatedAt: new Date() }
+            : report
+        )
+      );
+
     } catch (error) {
       console.error('Error updating report:', error);
       alert('Error updating report status');
@@ -198,9 +271,9 @@ const AdminDashboardPage: React.FC = () => {
   };
 
   // Get current reports for pagination
-  const currentReports = reports.slice(0, currentPage * reportsPerPage);
+  const currentReports = filteredReports.slice(0, currentPage * reportsPerPage);
 
-  if (loading) {
+  if (loading || !userProfile) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="text-xl">Loading dashboard...</div>
@@ -213,12 +286,113 @@ const AdminDashboardPage: React.FC = () => {
       {/* Dashboard Header */}
       <div className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600">Waste Management Analytics & Reports</p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+              <p className="text-gray-600">
+                Waste Management Analytics & Reports
+                {userProfile.role === 'admin' && (
+                  <span className="ml-2 text-blue-600 font-medium">
+                    • {userProfile.region} Region
+                  </span>
+                )}
+                {userProfile.role === 'super-admin' && (
+                  <span className="ml-2 text-purple-600 font-medium">
+                    • Super Admin (All Regions)
+                  </span>
+                )}
+              </p>
+            </div>
+
+            {/* Region Filter for Super Admin */}
+            {userProfile.role === 'super-admin' && (
+              <div className="flex items-center space-x-2">
+                <label htmlFor="regionFilter" className="text-sm font-medium text-gray-700">
+                  Filter by Region:
+                </label>
+                <select
+                  id="regionFilter"
+                  value={regionFilter}
+                  onChange={(e) => setRegionFilter(e.target.value as NigerianState | 'all')}
+                  className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All Regions</option>
+                  <option value="Abia">Abia</option>
+                  <option value="Adamawa">Adamawa</option>
+                  <option value="Akwa Ibom">Akwa Ibom</option>
+                  <option value="Anambra">Anambra</option>
+                  <option value="Bauchi">Bauchi</option>
+                  <option value="Bayelsa">Bayelsa</option>
+                  <option value="Benue">Benue</option>
+                  <option value="Borno">Borno</option>
+                  <option value="Cross River">Cross River</option>
+                  <option value="Delta">Delta</option>
+                  <option value="Ebonyi">Ebonyi</option>
+                  <option value="Edo">Edo</option>
+                  <option value="Ekiti">Ekiti</option>
+                  <option value="Enugu">Enugu</option>
+                  <option value="Gombe">Gombe</option>
+                  <option value="Imo">Imo</option>
+                  <option value="Jigawa">Jigawa</option>
+                  <option value="Kaduna">Kaduna</option>
+                  <option value="Kano">Kano</option>
+                  <option value="Katsina">Katsina</option>
+                  <option value="Kebbi">Kebbi</option>
+                  <option value="Kogi">Kogi</option>
+                  <option value="Kwara">Kwara</option>
+                  <option value="Lagos">Lagos</option>
+                  <option value="Nasarawa">Nasarawa</option>
+                  <option value="Niger">Niger</option>
+                  <option value="Ogun">Ogun</option>
+                  <option value="Ondo">Ondo</option>
+                  <option value="Osun">Osun</option>
+                  <option value="Oyo">Oyo</option>
+                  <option value="Plateau">Plateau</option>
+                  <option value="Rivers">Rivers</option>
+                  <option value="Sokoto">Sokoto</option>
+                  <option value="Taraba">Taraba</option>
+                  <option value="Yobe">Yobe</option>
+                  <option value="Zamfara">Zamfara</option>
+                  <option value="Federal Capital Territory - Abuja">Federal Capital Territory - Abuja</option>
+                </select>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto py-6 px-4">
+        {/* Region Stats for Super Admin */}
+        {userProfile.role === 'super-admin' && (
+          <div className="mb-6">
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Region Overview</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {Array.from(new Set(reports.map(r => r.region))).slice(0, 6).map(region => {
+                  const regionReports = reports.filter(r => r.region === region);
+                  const pending = regionReports.filter(r => r.workflowStatus === 'reported').length;
+                  return (
+                    <div key={region} className="text-center p-3 bg-gray-50 rounded">
+                      <div className="font-medium text-gray-900">{region}</div>
+                      <div className="text-sm text-gray-600">{regionReports.length} reports</div>
+                      {pending > 0 && (
+                        <div className="text-xs text-orange-600 mt-1">{pending} pending</div>
+                      )}
+                    </div>
+                  );
+                })}
+                {reports.length > 0 && (
+                  <div className="text-center p-3 bg-blue-50 rounded">
+                    <div className="font-medium text-gray-900">All</div>
+                    <div className="text-sm text-gray-600">{reports.length} reports</div>
+                    <div className="text-xs text-blue-600 mt-1">{analytics.pending} total pending</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Enhanced Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
@@ -313,7 +487,12 @@ const AdminDashboardPage: React.FC = () => {
             <div>
               <h2 className="text-xl font-semibold text-gray-800">Recent Reports</h2>
               <p className="text-gray-600 text-sm mt-1">
-                Showing {currentReports.length} of {reports.length} reports • {analytics.pending} require attention
+                Showing {currentReports.length} of {filteredReports.length} reports • {analytics.pending} require attention
+                {userProfile.role === 'super-admin' && regionFilter !== 'all' && (
+                  <span className="ml-2 text-blue-600">
+                    • Filtered by: {regionFilter}
+                  </span>
+                )}
               </p>
             </div>
             <div className="text-sm text-gray-500">
@@ -324,7 +503,7 @@ const AdminDashboardPage: React.FC = () => {
           <div className="p-6">
             {currentReports.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
-                No reports submitted yet.
+                No reports found for this region.
               </div>
             ) : (
               <div className="space-y-4">
@@ -342,6 +521,9 @@ const AdminDashboardPage: React.FC = () => {
                           <span className={`inline-block px-2 py-1 text-xs rounded ${getWorkflowColor(report.workflowStatus)}`}>
                             {report.workflowStatus}
                           </span>
+                          <span className="inline-block px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">
+                            {report.region}
+                          </span>
                         </div>
 
                         <p className="text-sm text-gray-600 mb-1">
@@ -350,7 +532,7 @@ const AdminDashboardPage: React.FC = () => {
 
                         {report.reporterName && (
                           <p className="text-xs text-gray-500 mb-1">
-                            Reported by: {report.reporterName}
+                            Reported by: {report.reporterName} ({report.reporterEmail})
                           </p>
                         )}
 
@@ -386,7 +568,7 @@ const AdminDashboardPage: React.FC = () => {
                       <div className="flex flex-col space-y-2 ml-4">
                         {report.workflowStatus === 'reported' && (
                           <button
-                            onClick={() => updateWorkflowStatus(report.id!, 'acknowledged')}
+                            onClick={() => updateWorkflowStatus(report.id!, 'acknowledged', report.reportedBy)}
                             className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors whitespace-nowrap"
                           >
                             Acknowledge
@@ -394,7 +576,7 @@ const AdminDashboardPage: React.FC = () => {
                         )}
                         {report.workflowStatus === 'acknowledged' && (
                           <button
-                            onClick={() => updateWorkflowStatus(report.id!, 'collected')}
+                            onClick={() => updateWorkflowStatus(report.id!, 'collected', report.reportedBy)}
                             className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors whitespace-nowrap"
                           >
                             Mark Collected
@@ -413,7 +595,7 @@ const AdminDashboardPage: React.FC = () => {
             )}
 
             {/* Load More Button */}
-            {hasMore && currentReports.length < reports.length && (
+            {hasMore && currentReports.length < filteredReports.length && (
               <div className="mt-6 text-center">
                 <button
                   onClick={loadMoreReports}
@@ -422,7 +604,7 @@ const AdminDashboardPage: React.FC = () => {
                   Load More Reports
                 </button>
                 <p className="text-sm text-gray-500 mt-2">
-                  Showing {currentReports.length} of {reports.length} reports
+                  Showing {currentReports.length} of {filteredReports.length} reports
                 </p>
               </div>
             )}
