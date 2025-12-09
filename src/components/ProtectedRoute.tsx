@@ -9,8 +9,8 @@ interface ProtectedRouteProps {
   requireEmailVerification?: boolean;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
-  children, 
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+  children,
   adminOnly = false,
   requireEmailVerification = true
 }) => {
@@ -23,16 +23,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     const checkVerification = async () => {
       if (user && requireEmailVerification && !user.emailVerified) {
         setCheckingVerification(true);
-        const { isVerified } = await checkEmailVerification();
+        await checkEmailVerification(); // Remove destructuring since isVerified isn't used
         setCheckingVerification(false);
       }
     };
 
     checkVerification();
-    
+
     // Set up interval to check verification status
     const interval = setInterval(checkVerification, 5000); // Check every 5 seconds
-    
+
     return () => clearInterval(interval);
   }, [user, requireEmailVerification, checkEmailVerification]);
 
@@ -62,14 +62,25 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
               Check your inbox for the verification email.
             </p>
             <p className="text-sm mb-4">
-              <span className="font-semibold">Note:</span> If you just verified your email, 
+              <span className="font-semibold">Note:</span> If you just verified your email,
               this page will automatically refresh in a few seconds.
             </p>
             <div className="flex flex-col space-y-2">
               <button
                 onClick={async () => {
-                  await user.sendEmailVerification();
-                  alert('Verification email resent!');
+                  // Use auth method to resend verification or check if sendEmailVerification exists
+                  try {
+                    // Check if user has sendEmailVerification method
+                    if ('sendEmailVerification' in user && typeof user.sendEmailVerification === 'function') {
+                      await (user as any).sendEmailVerification();
+                      alert('Verification email resent!');
+                    } else {
+                      alert('Verification email cannot be sent from this interface. Please use Firebase Console.');
+                    }
+                  } catch (error) {
+                    console.error('Error sending verification email:', error);
+                    alert('Error sending verification email');
+                  }
                 }}
                 className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded"
               >

@@ -18,8 +18,8 @@ export interface UserProfile {
     role: UserRole;
     region: NigerianState;
     emailVerified: boolean;
-    createdAt: Date;
-    updatedAt: Date;
+    createdAt: Date | any;
+    updatedAt: Date | any;
 }
 
 export interface Report {

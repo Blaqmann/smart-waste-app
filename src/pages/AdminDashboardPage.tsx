@@ -81,7 +81,7 @@ const AdminDashboardPage: React.FC = () => {
       } catch (error) {
         console.error('Error fetching reports:', error);
         // Check if it's a permission error
-        if (error.code === 'permission-denied') {
+        if ((error as any).code === 'permission-denied') { // Type cast error
           console.error('Permission denied. Check Firestore rules.');
         }
         setLoading(false);

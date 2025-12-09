@@ -31,11 +31,22 @@ const UserManagementPage: React.FC = () => {
             const usersData: UserProfile[] = [];
 
             usersSnapshot.forEach((doc) => {
-                usersData.push({ uid: doc.id, ...doc.data() } as UserProfile);
+                const data = doc.data();
+                usersData.push({
+                    uid: doc.id,
+                    ...data,
+                    // Convert Firestore Timestamp to Date if needed
+                    createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
+                    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt
+                } as UserProfile);
             });
 
             // Sort by creation date (newest first)
-            usersData.sort((a, b) => b.createdAt.toDate().getTime() - a.createdAt.toDate().getTime());
+            usersData.sort((a, b) => {
+                const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
+                const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+                return dateB.getTime() - dateA.getTime();
+            });
 
             setUsers(usersData);
             setLoading(false);
@@ -284,7 +295,11 @@ const UserManagementPage: React.FC = () => {
                                                     <div className="font-medium text-gray-900">{user.displayName}</div>
                                                     <div className="text-sm text-gray-500">{user.email}</div>
                                                     <div className="text-xs text-gray-400 mt-1">
-                                                        Joined: {user.createdAt.toDate().toLocaleDateString()}
+                                                        Joined: {
+                                                            user.createdAt instanceof Date
+                                                                ? user.createdAt.toLocaleDateString()
+                                                                : new Date(user.createdAt).toLocaleDateString()
+                                                        }
                                                     </div>
                                                 </div>
                                             </td>
